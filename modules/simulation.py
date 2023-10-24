@@ -11,6 +11,7 @@ from scipy.optimize import curve_fit
 from matplotlib.patches import Circle
 from IPython.display import display
 from IPython.display import Image as ipyimage
+from sklearn.linear_model import LinearRegression
 
 from modules.particle import Particle
 
@@ -19,7 +20,7 @@ class Simulation:
     def __init__(self, n, radius=1, styles=None, prob = 0.5):
         self.init_particles(n, radius, styles)
         self.a_s, self.b_s, self.time = [], [], []
-        self.prob_reac = 1-prob
+        self.prob_reac = prob
 
     def init_particles(self, n, radius, styles=None):
 
@@ -87,7 +88,7 @@ class Simulation:
         pairs = combinations(range(len(self.particles)), 2)
         for i, j in pairs:
             
-                if not (self.particles[i].merged or self.particles[j].merged) and np.random.random() > self.prob_reac:
+                if not (self.particles[i].merged or self.particles[j].merged) and np.random.random() < self.prob_reac:
                     if self.particles[i].overlaps(self.particles[j]):
                         merged_particle = merge_particles(self.particles[i], self.particles[j])
                         merged_particle.merged = True
@@ -134,18 +135,22 @@ class Simulation:
                 
         ax2.hist(self.vs)
         ax2.set_xlim(0,0.25)
+        ax2.set_yticks([])
         ax2.set_ylabel('Frequência',fontsize=16)
         ax2.set_xlabel('Velocidade',fontsize=16)
 
         self.a_s.append(a_count)
         self.b_s.append(b_count)
         self.time.append(i)
+
+        a_c = [v / self.n for v in self.a_s]
+        b_c = [v / self.n for v in self.b_s]
         
-        ax3.scatter(self.time,self.a_s,label='$A$',color='royalblue')
-        ax3.scatter(self.time,self.b_s,label='$A_2$',color='darkorange')
+        ax3.scatter(self.time,a_c,label='$A$',color='royalblue')
+        ax3.scatter(self.time,b_c,label='$A_2$',color='darkorange')
         ax3.set_xlim(0,frames)
         ax3.set_xlabel('Tempo',fontsize=16)
-        ax3.set_ylabel('Concentração',fontsize=16)
+        ax3.set_ylabel('Concentração (%)',fontsize=16)
         ax3.legend()
         
         plt.tight_layout()
@@ -218,14 +223,25 @@ class Simulation:
             plt.ylabel('Concentração',fontsize=16)
             plt.legend()
 
-            derivada_A = [y_fit_A[i] - y_fit_A[i - 1] for i in range(1,len(y_fit_A))]
-            derivada_B = [y_fit_B[i] - y_fit_B[i - 1] for i in range(1,len(y_fit_B))]
+            derivada_A = -1*np.array([y_fit_A[i] - y_fit_A[i - 1] for i in range(1,len(y_fit_A))])
+            # derivada_B = np.array([y_fit_B[i] - y_fit_B[i - 1] for i in range(1,len(y_fit_B))])
 
             plt.subplot(122)
-            plt.plot(x_fit[:-1],derivada_A,label='[$A$]')
-            plt.plot(x_fit[:-1],derivada_B,label='[$A_2$]')
-            plt.xlabel('Tempo',fontsize=16),plt.ylabel('d[]/dt',fontsize=16)
-            plt.legend()
+            
+            plt.scatter(y_fit_A[1:],derivada_A,label='[$A$]',alpha=0.6)
+            # plt.plot(self.a_s[1:],derivada_A,label='[$A$]',alpha=0.3)
+            
+            x = np.array(y_fit_A[1:]).reshape((-1, 1))
+            y = np.array(derivada_A)
+            
+            model = LinearRegression().fit(x, y)
+            
+            x_plot = np.linspace(x[0],x[-1],frames)
+            y_plot = x_plot*model.coef_ + model.intercept_
+            
+            plt.plot(x_plot,y_plot,alpha=0.4)
+            
+            plt.xlabel('Concentração',fontsize=16),plt.ylabel('d[]/dt',fontsize=16)
 
             plt.tight_layout()
         
