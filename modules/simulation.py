@@ -132,7 +132,7 @@ class Simulation:
                 a_count += 1
             else:
                 b_count += 1
-                
+        
         ax2.hist(self.vs)
         ax2.set_xlim(0,0.25)
         ax2.set_yticks([])
