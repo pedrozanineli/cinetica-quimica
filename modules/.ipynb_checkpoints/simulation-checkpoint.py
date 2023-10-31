@@ -17,12 +17,13 @@ from modules.particle import Particle
 
 class Simulation:
 
-    def __init__(self, n, radius=1, styles=None, prob = 0.5):
-        self.init_particles(n, radius, styles)
+    def __init__(self, n, radius=1, styles=None, prob = 0.5, temp = 1):
+        self.init_particles(n, radius, prob, styles)
         self.a_s, self.b_s, self.time = [], [], []
         self.prob_reac = prob
+        self.temp = temp
 
-    def init_particles(self, n, radius, styles=None):
+    def init_particles(self, n, radius, prob, styles=None):
 
         try:
             iterator = iter(radius)
@@ -35,7 +36,6 @@ class Simulation:
 
         self.n = n
         self.particles = []
-
         
         for i, rad in enumerate(radius):
             while True:
@@ -44,7 +44,7 @@ class Simulation:
                 vphi = 2*np.pi * np.random.random()
                 vx, vy = vr * np.cos(vphi), vr * np.sin(vphi)
                 
-                particle = Particle(x, y, vx, vy, 'darkorange', rad, styles)
+                particle = Particle(x, y, vx, vy, 'darkorange', prob, rad, styles)
                 
                 for p2 in self.particles:
                     if p2.overlaps(particle):
@@ -67,7 +67,7 @@ class Simulation:
             p1.v = u1
             p2.v = u2
         
-        def merge_particles(p1, p2):
+        def merge_particles(p1, p2, cat=False):
             
             merged_radius = np.sqrt(p1.radius**2 + p2.radius**2)
             merged_x = (p1.x + p2.x) / 2
@@ -75,7 +75,14 @@ class Simulation:
             merged_vx = (p1.vx + p2.vx) / 2
             merged_vy = (p1.vy + p2.vy) / 2
             
-            merged_particle = Particle(merged_x, merged_y, merged_vx, merged_vy, 'royalblue', merged_radius)
+            # if cat:
+            #     color = 'green'
+            # else:
+            #     color = 'royalblue'
+            
+            color = 'royalblue'
+            
+            merged_particle = Particle(merged_x, merged_y, merged_vx, merged_vy, color, merged_radius)
 
             p1.merged = True
             p2.merged = True
@@ -88,15 +95,26 @@ class Simulation:
         pairs = combinations(range(len(self.particles)), 2)
         for i, j in pairs:
             
-                if not (self.particles[i].merged or self.particles[j].merged) and np.random.random() < self.prob_reac:
-                    if self.particles[i].overlaps(self.particles[j]):
-                        merged_particle = merge_particles(self.particles[i], self.particles[j])
-                        merged_particle.merged = True
-                        particles_to_add.append(merged_particle)
-                        particles_to_remove.extend([i, j])
+                if self.catalisador:
+                    if not (self.particles[i].merged or self.particles[j].merged) and np.random.random() < (self.particles[i].reat + self.particles[j].reat)/2:
+                        if self.particles[i].overlaps(self.particles[j]):
+                            merged_particle = merge_particles(self.particles[i], self.particles[j], cat=True)
+                            merged_particle.merged = True
+                            particles_to_add.append(merged_particle)
+                            particles_to_remove.extend([i, j])
+                    else:
+                        if self.particles[i].overlaps(self.particles[j]):
+                            change_velocities(self.particles[i], self.particles[j])
                 else:
-                    if self.particles[i].overlaps(self.particles[j]):
-                        change_velocities(self.particles[i], self.particles[j])
+                    if not (self.particles[i].merged or self.particles[j].merged) and np.random.random() < self.prob_reac:
+                        if self.particles[i].overlaps(self.particles[j]):
+                            merged_particle = merge_particles(self.particles[i], self.particles[j])
+                            merged_particle.merged = True
+                            particles_to_add.append(merged_particle)
+                            particles_to_remove.extend([i, j])
+                    else:
+                        if self.particles[i].overlaps(self.particles[j]):
+                            change_velocities(self.particles[i], self.particles[j])
             
         self.particles = [p for idx, p in enumerate(self.particles) if idx not in particles_to_remove]
         self.particles.extend(particles_to_add)
@@ -104,58 +122,67 @@ class Simulation:
     def advance_animation(self, dt):
 
         for i, p in enumerate(self.particles):
-            p.advance(dt)
+            p.advance(dt,self.catalisador,self.temp)
             self.circles[i].center = p.r
         self.handle_collisions()
         return self.circles
     
     def draw(self,i,frames):
         
-        plt.rcParams['font.family'] = 'serif'
-        
-        fig, (ax1, ax2, ax3) = plt.subplots(1,3,figsize=(15,5))
-        
+        self.vs = []
         a_count,b_count=0,0
         
-        ax1.set_title(r'$2A \rightarrow A_2$')
-        ax1.set_xticks([])
-        ax1.set_yticks([])
-        
-        self.vs = []
-        
         for particle in self.particles:
-            circle = Circle(xy=particle.r, radius=particle.radius, edgecolor=particle.color, fill=False)
-            ax1.add_patch(circle)
             self.vs.append(np.sqrt(particle.vx**2+particle.vy**2))
             
-            if particle.color=='royalblue':
+            if particle.color=='royalblue' or particle.color=='green':
                 a_count += 1
             else:
                 b_count += 1
         
-        ax2.hist(self.vs)
-        ax2.set_xlim(0,0.25)
-        ax2.set_yticks([])
-        ax2.set_ylabel('Frequência',fontsize=16)
-        ax2.set_xlabel('Velocidade',fontsize=16)
-
         self.a_s.append(a_count)
         self.b_s.append(b_count)
         self.time.append(i)
-
+        
         a_c = [v / self.n for v in self.a_s]
         b_c = [v / self.n for v in self.b_s]
         
-        ax3.scatter(self.time,a_c,label='$A$',color='royalblue')
-        ax3.scatter(self.time,b_c,label='$A_2$',color='darkorange')
-        ax3.set_xlim(0,frames)
-        ax3.set_xlabel('Tempo',fontsize=16)
-        ax3.set_ylabel('Concentração (%)',fontsize=16)
-        ax3.legend()
-        
-        plt.tight_layout()
-        plt.savefig('figs/{:03d}.png'.format(i))
-        plt.close()
+        if self.save_gif:
+            
+            plt.rcParams['font.family'] = 'serif'
+
+            fig, (ax1, ax2, ax3) = plt.subplots(1,3,figsize=(15,5))
+
+            ax1.set_title(r'$2A \rightarrow A_2$')
+            ax1.set_xticks([])
+            ax1.set_yticks([])
+            
+            if self.catalisador:
+                ax1.spines['top'].set_color('red')
+                ax1.spines['left'].set_color('red')
+                ax1.spines['right'].set_color('red')
+                ax1.spines['bottom'].set_color('red')
+
+            for particle in self.particles:
+                circle = Circle(xy=particle.r, radius=particle.radius, edgecolor=particle.color, fill=particle.styles['fill'])
+                ax1.add_patch(circle)
+
+            ax2.hist(self.vs)
+            ax2.set_xlim(0,0.25)
+            ax2.set_yticks([])
+            ax2.set_ylabel('Frequência',fontsize=16)
+            ax2.set_xlabel('Velocidade',fontsize=16)
+
+            ax3.scatter(self.time,a_c,label='$A$',color='royalblue')
+            ax3.scatter(self.time,b_c,label='$A_2$',color='darkorange')
+            ax3.set_xlim(0,frames)
+            ax3.set_xlabel('Tempo',fontsize=16)
+            ax3.set_ylabel('Concentração (%)',fontsize=16)
+            ax3.legend()
+
+            plt.tight_layout()
+            plt.savefig('figs/{:03d}.png'.format(i))
+            plt.close()
     
     def init(self):
 
@@ -164,9 +191,13 @@ class Simulation:
             self.circles.append(particle)
         return self.circles
     
-    def run(self,frames,display_gif=True,display_fit=True,save_gif=True):
+    def run(self,frames,display_gif=True,display_fit=True,save_gif=True,catalisador=False):
         
         self.init()
+        
+        self.save_gif = save_gif
+        self.catalisador = catalisador
+        
         progresso = tqdm(total=frames)
         
         for i in range(frames):            
@@ -210,6 +241,7 @@ class Simulation:
         
         if display_fit:
             plt.figure(figsize=(10,4))
+            plt.rcParams['font.family'] = 'serif'
 
             plt.subplot(121)
             plt.scatter(self.time,self.a_s,label='$A$',color='royalblue')

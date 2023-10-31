@@ -3,7 +3,7 @@ import numpy as np
 
 class Particle:
 
-    def __init__(self, x, y, vx, vy, color, radius=0.01, styles=None):
+    def __init__(self, x, y, vx, vy, color, prob=0.1, radius=0.01, styles=None):
         
         self.r = np.array((x, y))
         self.v = np.array((vx, vy))
@@ -11,6 +11,7 @@ class Particle:
         self.color = color
         self.styles = styles
         self.merged = False
+        self.reat = prob
         
         if not self.styles:
             self.styles = {'edgecolor': 'royalblue', 'fill': False}
@@ -45,19 +46,25 @@ class Particle:
         return math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2) <= (self.radius + other.radius)
         # return np.hypot(*(self.r*2 - other.r*2)) < self.radius*2 + other.radius*2
 
-    def advance(self, dt):
+    def advance(self, dt, cat, temp):
 
-        self.r += self.v * dt
+        self.r += self.v * dt * temp/10
 
         if self.x - self.radius < 0:
             self.x = self.radius
             self.vx = -self.vx
+            
         if self.x + self.radius > 1:
             self.x = 1-self.radius
             self.vx = -self.vx
+            
         if self.y - self.radius < 0:
             self.y = self.radius
             self.vy = -self.vy
+            
         if self.y + self.radius > 1:
             self.y = 1-self.radius
             self.vy = -self.vy
+
+        if cat:
+            self.reat += 3
